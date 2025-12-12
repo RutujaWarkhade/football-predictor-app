@@ -1,0 +1,20 @@
+{
+  "feature_columns": [
+    "matches_played",
+    "points_per_game",
+    "goals_scored",
+    "goals_conceded",
+    "goal_difference"
+  ],
+  "model_file": "rf_model.joblib",
+  "scaler_file": "scaler.joblib",
+  "feature_importance_file": "feature_importance.csv",
+  "metrics": {
+    "roc_auc_cv": 0.9736842105263157,
+    "accuracy_cv": 0.9666666666666667,
+    "precision_champion": 0.6153846153846154,
+    "recall_champion": 0.8888888888888888,
+    "f1_champion": 0.7272727272727273,
+    "optimal_threshold": 0.5500000000000002
+  }
+}

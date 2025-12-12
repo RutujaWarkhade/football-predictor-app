@@ -1,0 +1,43 @@
+{
+  "features": [
+    "Position",
+    "Age",
+    "MatchesPlayed",
+    "Starts",
+    "Minutes",
+    "90sPlayed",
+    "GoalsPer90",
+    "AssistsPer90",
+    "NonPenaltyGoalsPer90",
+    "xGPer90",
+    "xAGPer90",
+    "npxGPer90"
+  ],
+  "feature_types": {
+    "Position": "categorical",
+    "Age": "numeric",
+    "MatchesPlayed": "numeric",
+    "Starts": "numeric",
+    "Minutes": "numeric",
+    "90sPlayed": "numeric",
+    "GoalsPer90": "numeric",
+    "AssistsPer90": "numeric",
+    "NonPenaltyGoalsPer90": "numeric",
+    "xGPer90": "numeric",
+    "xAGPer90": "numeric",
+    "npxGPer90": "numeric"
+  },
+  "categorical_cols": [
+    "Position"
+  ],
+  "categories_map": {
+    "Position": [
+      "AT",
+      "DF",
+      "GB",
+      "MT",
+      "MT,AT",
+      "MT,DF"
+    ]
+  }
+}
