@@ -1,4 +1,4 @@
-# app_main.py
+# app_main.py - FIXED VERSION
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,12 +7,78 @@ import json
 import os
 import tensorflow as tf
 from pathlib import Path
+import pickle
+import sys
+
+# ============================================
+# SKLEARN COMPATIBILITY FIXES
+# ============================================
+
+# Monkey patch for missing sklearn classes
+try:
+    from sklearn.compose._column_transformer import _RemainderColsList
+except (ImportError, AttributeError):
+    # Create a dummy class if it doesn't exist
+    class _RemainderColsList(list):
+        pass
+    
+    # Patch it into sklearn module
+    import sklearn.compose._column_transformer
+    sklearn.compose._column_transformer._RemainderColsList = _RemainderColsList
+    sys.modules['sklearn.compose._column_transformer']._RemainderColsList = _RemainderColsList
+
+# Custom unpickler for sklearn compatibility
+class SklearnCompatibilityUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        # Fix for _RemainderColsList and other sklearn issues
+        if module == "sklearn.compose._column_transformer" and name == "_RemainderColsList":
+            return _RemainderColsList
+        
+        # Handle other potential sklearn compatibility issues
+        if module.startswith("sklearn."):
+            # Map old names to new ones if needed
+            renamed_classes = {
+                ("sklearn.impute", "Imputer"): "SimpleImputer",
+            }
+            
+            old_key = (module, name)
+            if old_key in renamed_classes:
+                import importlib
+                try:
+                    module_obj = importlib.import_module(module)
+                    return getattr(module_obj, renamed_classes[old_key])
+                except:
+                    pass
+        
+        return super().find_class(module, name)
+
+def load_compatible_pickle(filepath):
+    """Load pickle files with sklearn compatibility fixes"""
+    try:
+        # First try normal joblib
+        return joblib.load(filepath)
+    except (AttributeError, KeyError, pickle.UnpicklingError) as e:
+        # If that fails, try with custom unpickler
+        try:
+            with open(filepath, 'rb') as f:
+                return SklearnCompatibilityUnpickler(f).load()
+        except Exception as e2:
+            st.warning(f"Failed to load {filepath} with compatibility fix: {e2}")
+            # Try cloudpickle if available
+            try:
+                import cloudpickle
+                with open(filepath, 'rb') as f:
+                    return cloudpickle.load(f)
+            except ImportError:
+                return None
+            except Exception as e3:
+                return None
 
 # ============================================
 # IMPROVED CROSS-PLATFORM FILE HANDLING
 # ============================================
 
-# Use __file__ to get the script's directory (more reliable)
+# Use __file__ to get the script's directory
 BASE = Path(__file__).parent
 MODELS_DIR = BASE / "models"
 DATA_DIR = BASE / "data"
@@ -37,7 +103,6 @@ def find_file(filename, search_dirs=None):
     
     # If not found, check for variations
     possible_names = [filename]
-    # Add variations for common file extensions
     base_name = Path(filename).stem
     possible_names.extend([f"{base_name}.pkl", f"{base_name}.joblib", f"{base_name}.h5", 
                           f"{base_name}.json", f"{base_name}.csv"])
@@ -71,17 +136,13 @@ def load_model_flexible(filename):
     try:
         # Check file extension
         if file_path.suffix in ['.pkl', '.joblib']:
-            return joblib.load(file_path)
+            # Use the compatibility loader for pickle files
+            return load_compatible_pickle(file_path)
         elif file_path.suffix == '.h5':
             return tf.keras.models.load_model(file_path)
         else:
-            # Try joblib first, then pickle
-            try:
-                return joblib.load(file_path)
-            except:
-                import pickle
-                with open(file_path, 'rb') as f:
-                    return pickle.load(f)
+            # Try the compatibility loader
+            return load_compatible_pickle(file_path)
     except Exception as e:
         st.warning(f"Could not load model {filename}: {e}")
         return None
@@ -96,9 +157,19 @@ league_scaler = load_model_flexible("scaler.joblib")
 league_metadata = load_json_flexible("model_metadata.json")
 threshold_data = load_json_flexible("threshold.json") or {}
 
-# Goals & Assists Models
-goals_model = load_model_flexible("xgb_goals_pipeline.pkl")
-assists_model = load_model_flexible("xgb_assists_pipeline.pkl")
+# Goals & Assists Models - with better error handling
+try:
+    goals_model = load_model_flexible("xgb_goals_pipeline.pkl")
+except Exception as e:
+    goals_model = None
+    st.warning(f"Could not load goals model: {e}")
+
+try:
+    assists_model = load_model_flexible("xgb_assists_pipeline.pkl")
+except Exception as e:
+    assists_model = None
+    st.warning(f"Could not load assists model: {e}")
+
 goals_meta_json = load_json_flexible("metadata_goals.json")
 assists_meta_json = load_json_flexible("metadata_assists.json")
 
@@ -366,15 +437,11 @@ st.sidebar.markdown("""
 
 st.sidebar.markdown("---")
 
-# Model status in a cleaner way
-st.sidebar.markdown("### 📊 System Status")
-
-# Create status indicators
-status_emoji = {
-    "league": "✅" if league_model else "❌",
-    "goals_assists": "✅" if goals_model or assists_model else "❌", 
-    "match": "✅" if match_model else "❌"
-}
+# Model status in a cleaner way - UPDATED to handle None models gracefully
+league_status = "✅" if league_model else "❌"
+goals_status = "✅" if goals_model else "❌"
+assists_status = "✅" if assists_model else "❌"
+match_status = "✅" if match_model else "❌"
 
 col1, col2, col3 = st.sidebar.columns(3)
 with col1:
@@ -382,7 +449,7 @@ with col1:
         <div style='text-align: center;'>
             <div style='font-size: 1.5rem; color: #2ecc71;'>🏆</div>
             <small style='color: #888;'>League</small><br>
-            <b style='color: #2ecc71;'>{status_emoji['league']}</b>
+            <b style='color: #2ecc71;'>{league_status}</b>
         </div>
     """, unsafe_allow_html=True)
 with col2:
@@ -390,7 +457,7 @@ with col2:
         <div style='text-align: center;'>
             <div style='font-size: 1.5rem; color: #2ecc71;'>🥅</div>
             <small style='color: #888;'>Player</small><br>
-            <b style='color: #2ecc71;'>{status_emoji['goals_assists']}</b>
+            <b style='color: #2ecc71;'>{goals_status if goals_model or assists_model else "⚠️"}</b>
         </div>
     """, unsafe_allow_html=True)
 with col3:
@@ -398,7 +465,7 @@ with col3:
         <div style='text-align: center;'>
             <div style='font-size: 1.5rem; color: #2ecc71;'>🎯</div>
             <small style='color: #888;'>Match</small><br>
-            <b style='color: #2ecc71;'>{status_emoji['match']}</b>
+            <b style='color: #2ecc71;'>{match_status}</b>
         </div>
     """, unsafe_allow_html=True)
 
@@ -467,10 +534,16 @@ if "🏠 Dashboard" in page:
             <div class="overlay-card" style="text-align: center; animation-delay: 0.3s;">
                 <span class="emoji" style="font-size: 3rem; color: #2ecc71; margin-bottom: 15px; display: block;">🤖</span>
                 <h3>AI Models</h3>
-                <div style="font-size: 3rem; margin: 15px 0; color: #2ecc71;">3</div>
+                <div style="font-size: 3rem; margin: 15px 0; color: #2ecc71;">
+                    {0}{1}{2}
+                </div>
                 <p style="color: #888;">Active Systems</p>
             </div>
-            """, 
+            """.format(
+                "1" if league_model else "0",
+                "1" if goals_model or assists_model else "0",
+                "1" if match_model else "0"
+            ), 
             unsafe_allow_html=True
         )
     
@@ -555,16 +628,20 @@ if "🏠 Dashboard" in page:
         )
     
     with col2:
+        player_status = "Available" if (goals_model or assists_model) else "Coming Soon"
+        player_color = "#2ecc71" if (goals_model or assists_model) else "#f39c12"
         st.markdown(
-            """
-            <div class="overlay-card" style="text-align: center; height: 280px; animation-delay: 0.4s;">
-                <span class="emoji" style="font-size: 3rem; color: #2ecc71; margin-bottom: 15px; display: block;">🥅</span>
+            f"""
+            <div class="overlay-card" style="text-align: center; height: 280px; animation-delay: 0.4s; border-left: 5px solid {player_color};">
+                <span class="emoji" style="font-size: 3rem; color: {player_color}; margin-bottom: 15px; display: block;">🥅</span>
                 <h3>Player Performance</h3>
                 <p style="color: #b0b0b0; font-size: 0.9rem;">
                     Forecast player statistics and performance metrics using advanced algorithms.
                 </p>
                 <div style="margin-top: 20px;">
-                    <small style="color: #2ecc71;">Player Stats • Performance Metrics</small>
+                    <small style="color: {player_color};">
+                        {player_status} • Performance Metrics
+                    </small>
                 </div>
             </div>
             """, 
@@ -616,7 +693,7 @@ if "🏠 Dashboard" in page:
             )
 
 # ============================================
-# PAGE: PLAYER STATS (Goals & Assists)
+# PAGE: PLAYER STATS (Goals & Assists) - UPDATED
 # ============================================
 
 elif "🥅 Player Stats" in page:
@@ -637,22 +714,41 @@ elif "🥅 Player Stats" in page:
         unsafe_allow_html=True
     )
     
-    if goals_model is None and assists_model is None:
-        st.error("""
-        <div class="overlay-card" style="border-left: 4px solid #e74c3c;">
-            <h4 style="color: #e74c3c;">⚠️ Models Not Available</h4>
-            <p style="color: #b0b0b0;">Please ensure model files are in the correct location.</p>
+    # Check which models are available
+    available_models = []
+    if goals_model is not None:
+        available_models.append("Goals")
+    if assists_model is not None:
+        available_models.append("Assists")
+    
+    if not available_models:
+        st.info("""
+        <div class="overlay-card" style="border-left: 4px solid #f39c12;">
+            <h4 style="color: #f39c12;">⚠️ Player Models Temporarily Unavailable</h4>
+            <p style="color: #b0b0b0;">
+                The player prediction models are currently being updated for improved compatibility.
+                Please check back soon or use our other prediction features:
+            </p>
+            <ul style="color: #b0b0b0;">
+                <li>🏆 League Champion Predictor</li>
+                <li>🎯 Match Outcome Predictor</li>
+            </ul>
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Target selection with style
-        st.markdown("### 🎯 Select Prediction Type")
+        # Target selection with only available models
+        options = []
+        if goals_model is not None:
+            options.append("⚽ Goals Prediction")
+        if assists_model is not None:
+            options.append("🎯 Assists Prediction")
+        
         target = st.radio(
-            "",
-            ["⚽ Goals Prediction", "🎯 Assists Prediction"],
-            horizontal=True,
-            label_visibility="collapsed"
+            "### 🎯 Select Prediction Type",
+            options,
+            horizontal=True
         )
+        
         target = "Goals" if "Goals" in target else "Assists"
         
         # Get appropriate model and metadata
@@ -666,12 +762,6 @@ elif "🥅 Player Stats" in page:
             meta = assists_meta_json
             icon = "🎯"
             color = "#3498db"
-        
-        # Status indicator
-        if model and meta:
-            st.success(f"✅ {target} model loaded successfully")
-        else:
-            st.warning(f"⚠️ {target} model or metadata not fully available")
         
         if meta is not None and model is not None:
             # Get features from metadata
