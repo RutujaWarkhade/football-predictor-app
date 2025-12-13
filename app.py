@@ -363,14 +363,22 @@ st.markdown(
     }
     
     /* Hero gradient text */
-    .hero-gradient {
-        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 50%, #1abc9c 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        background-size: 200% auto;
-        animation: textShine 3s ease-in-out infinite alternate;
-    }
+.hero-gradient {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: textShine 3s ease-in-out infinite alternate;
+}
+
+/* Separate emoji from gradient text */
+.hero-emoji {
+    font-size: 4rem;
+    margin-bottom: 10px;
+    display: block;
+    color: inherit !important; /* This keeps original emoji color */
+}
     
     @keyframes textShine {
         to {
@@ -471,20 +479,21 @@ try:
     if "🏠 Dashboard" in page:
         # Hero Section
         st.markdown(
-            """
-            <div class="overlay-card" style="animation-delay: 0.1s;">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <h1 class="hero-gradient" style="font-size: 4rem; margin-bottom: 10px;">
-                        ⚽ Football Predictor Pro
-                    </h1>
-                    <p style="font-size: 1.3rem; color: #b0b0b0; line-height: 1.6;">
-                        Unleash the power of AI-driven football analytics with our professional prediction platform.
-                    </p>
-                </div>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+    """
+    <div class="overlay-card" style="animation-delay: 0.1s;">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div class="hero-emoji">⚽</div>
+            <h1 class="hero-gradient" style="font-size: 4rem; margin-bottom: 10px;">
+                Football Predictor Pro
+            </h1>
+            <p style="font-size: 1.3rem; color: #b0b0b0; line-height: 1.6;">
+                Unleash the power of AI-driven football analytics with our professional prediction platform.
+            </p>
+        </div>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
         
         # Stats Counter
         col1, col2, col3 = st.columns(3)
