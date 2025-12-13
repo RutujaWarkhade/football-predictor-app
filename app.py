@@ -393,12 +393,7 @@ st.markdown(
     }
     </style>
     
-    <!-- Football field pattern -->
-    <div class="football-field">
-        <div class="field-line" style="top: 50%; left: 0; width: 100%; height: 2px;"></div>
-        <div class="field-line" style="top: 0; left: 50%; width: 2px; height: 100%;"></div>
-        <div class="field-line" style="top: 20%; left: 20%; width: 60%; height: 60%; border: 2px solid rgba(46, 204, 113, 0.1); border-radius: 15px;"></div>
-    </div>
+    
     """, 
     unsafe_allow_html=True
 )
